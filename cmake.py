@@ -1,22 +1,13 @@
 import sys
+import os
+import platform
 from pathlib import Path
+import argparse
 
 DOUBLE_PRECISION = 0
 
-# kaldi root
-kaldi_root = 'your-kaldi-root-path'
 
-# variables to openfst (change them to your path in kaldi.mk)
-OPENFSTINC = 'your OPENFSTINC defined in kaldi.mk'
-OPENFSTLIBS = 'your OPENFSTLIBS *so* in kaldi.mk'
-
-# variables to atlas (change them to your path in kaldi.mk)
-ATLASINC = 'your ATLASINC defined in kaldi.mk'
-ATLASLIBS = 'your ATLASLIBS *so* in kaldi.mk'
-
-dependency_libs = (OPENFSTLIBS +' ' + ATLASLIBS).split()
-
-def generate_cmake(makefile_path, cmake_path):
+def generate_cmake(makefile_path, cmake_path, dependency_libs):
     """
     This is to parse Makefile under each subdirectory to generate corresponding CMakeLists.txt
 
@@ -185,10 +176,42 @@ def generate_cmake(makefile_path, cmake_path):
 
 if __name__ == '__main__':
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--root', dest='root', help="kaldi root path.",
+                        type=str, default='/User/admin/code/kaldi')
+    parser.add_argument('--fst', dest='fst', help="openfst path.")
+
+    args = parser.parse_args()
+
+    # kaldi root
+    kaldi_root = args.root
+
+    # variables to openfst (change them to your path in kaldi.mk)
+    OPENFSTINC = os.path.join(args.fst, "include")
+    if platform.system() == 'Darwin':
+        OPENFSTLIBS = os.path.join(args.fst, "lib/libfst.dylib")
+    elif platform.system() == 'Linux':
+        OPENFSTLIBS = os.path.join(args.fst, "lib/libfst.so")
+    else:
+        raise NotImplemented("This script doesn't support windows, are you sure you want build kaldi on windows?")
+    #OPENFSTINC = '/Users/admin/code/kaldi/tools/openfst-1.6.7/include'
+    #OPENFSTLIBS = '/Users/admin/code/kaldi/tools/openfst-1.6.7/lib/libfst.dylib'
+
+    # OPENFSTINC = 'your OPENFSTINC defined in kaldi.mk'
+    # OPENFSTLIBS = 'your OPENFSTLIBS *so* in kaldi.mk'
+
+    # variables to atlas (change them to your path in kaldi.mk)
+    # now default math lib is intel MKL, just set follow line to empty string.
+    ATLASINC = ''
+    ATLASLIBS = ''
+
+    dependency_libs = (OPENFSTLIBS + ' ' + ATLASLIBS).split()
+
     src_dir = Path(kaldi_root) / 'src'
 
     # directories we do not want to generate CMakeLists.txt
-    exclude_dirs = set(["doc", "gst-plugin", "makefiles", ".git", "probe", "tfrnnlm", "tfrnnlmbin", "online", "onlinebin", "cudadecoder", "cudadecoderbin"])
+    exclude_dirs = set(["doc", "gst-plugin", "makefiles", ".git", "probe", "tfrnnlm", "tfrnnlmbin",
+                        "online", "onlinebin", "cudadecoder", "cudadecoderbin"])
 
     kaldi_cmake = open(kaldi_root + '/CMakeLists.txt', 'w')
 
@@ -206,6 +229,9 @@ if __name__ == '__main__':
     kaldi_cmake.write("add_compile_definitions(HAVE_ATLAS)\n\ninclude_directories("+ATLASINC+")\n\n")
     kaldi_cmake.write("include_directories("+OPENFSTINC+")\n\n")
 
+    # need include src folder, otherwise we can't find all kaldi header files when we open in root directory.
+    kaldi_cmake.write("include_directories(src)\n\n")
+
     # process subdirectory to generate cmakelists.txt iteratively
     for sub_dir in src_dir.iterdir():
 
@@ -216,7 +242,7 @@ if __name__ == '__main__':
         cmake_path = sub_dir / 'CMakeLists.txt'
 
         if makefile_path.exists():
-            generate_cmake(makefile_path, cmake_path)
+            generate_cmake(makefile_path, cmake_path, dependency_libs)
             kaldi_cmake.write("add_subdirectory("+str(sub_dir)+")\n")
 
     kaldi_cmake.close()
