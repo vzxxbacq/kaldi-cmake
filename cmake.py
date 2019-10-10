@@ -180,9 +180,10 @@ if __name__ == '__main__':
     parser.add_argument('--root', dest='root', help="kaldi root path.",
                         type=str, default='/User/admin/code/kaldi')
     parser.add_argument('--fst', dest='fst', help="openfst path.")
-
+    
     args = parser.parse_args()
-
+    if args.fst is None:
+        args.fst = os.path.join(args.root, "tools/openfst")
     # kaldi root
     kaldi_root = args.root
 
