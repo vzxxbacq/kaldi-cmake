@@ -39,7 +39,8 @@ def generate_cmake(makefile_path, cmake_path, dependency_libs):
 
     # this is to enable pthread flags
     addlibs.append("${CMAKE_THREAD_LIBS_INIT}")
-
+    addlibs.append("${MKL_LIBS}")
+    addlibs.append("${CUDA_LIBRARIES}")
     # denote current mode: bin, obj, libname or addlibs
     mode = "mode"
 
@@ -141,9 +142,16 @@ def generate_cmake(makefile_path, cmake_path, dependency_libs):
     # this is to keep compatibility with original kaldi project
     cmake.write('set(EXECUTABLE_OUTPUT_PATH "${CMAKE_CURRENT_SOURCE_DIR}")\n\n')
 
+    def add_suffix(l):
+        files = os.listdir(str(makefile_path.absolute())[:-9])
+        res = ""
+        for obj in l[:-1]:
+            res += obj + ('.cu ' if (obj+".cu") in files else '.cc ')
+        res += l[-1] + ('.cu' if (l[-1]+".cu") in files else '.cc')
+        return res
     # generate library rules if libname is provided
     if libname:
-        cmake.write('add_library('+libname+' '+'.cc '.join(obj_files)+'.cc)\n\n')
+        cmake.write('add_library('+libname+' '+ add_suffix(obj_files) + ')\n\n')
 
         for addlib in addlibs:
             cmake.write("target_link_libraries("+libname+" "+addlib+")\n")
@@ -174,6 +182,7 @@ def generate_cmake(makefile_path, cmake_path, dependency_libs):
 
     cmake.close()
 
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
@@ -195,23 +204,24 @@ if __name__ == '__main__':
         OPENFSTLIBS = os.path.join(args.fst, "lib/libfst.so")
     else:
         raise NotImplemented("This script doesn't support windows, are you sure you want build kaldi on windows?")
-    #OPENFSTINC = '/Users/admin/code/kaldi/tools/openfst-1.6.7/include'
-    #OPENFSTLIBS = '/Users/admin/code/kaldi/tools/openfst-1.6.7/lib/libfst.dylib'
 
-    # OPENFSTINC = 'your OPENFSTINC defined in kaldi.mk'
-    # OPENFSTLIBS = 'your OPENFSTLIBS *so* in kaldi.mk'
 
     # variables to atlas (change them to your path in kaldi.mk)
     # now default math lib is intel MKL, just set follow line to empty string.
-    ATLASINC = ''
-    ATLASLIBS = ''
+    #ATLASINC = ''
+    #ATLASLIBS = ''
+    # change to MKL
+    MKLROOT = "/opt/intel/mkl/include"
+    MKLLIB = "/opt/intel/mkl/lib/intel64"
+    CUBROOT = "/home/fhq/code/kaldi/tools/cub-1.8.0"
+    CUDAINC = "/usr/local/cuda/include"
+    dependency_libs = [OPENFSTLIBS]
 
-    dependency_libs = (OPENFSTLIBS + ' ' + ATLASLIBS).split()
 
     src_dir = Path(kaldi_root) / 'src'
 
     # directories we do not want to generate CMakeLists.txt
-    exclude_dirs = set(["doc", "gst-plugin", "makefiles", ".git", "probe", "tfrnnlm", "tfrnnlmbin",
+    exclude_dirs = set(["dnoc", "gst-plugin", "makefiles", ".git", "probe", "tfrnnlm", "tfrnnlmbin",
                         "online", "onlinebin", "cudadecoder", "cudadecoderbin"])
 
     kaldi_cmake = open(kaldi_root + '/CMakeLists.txt', 'w')
@@ -224,11 +234,24 @@ if __name__ == '__main__':
     kaldi_cmake.write("add_compile_definitions(HAVE_CXXABI_H)\n")
     kaldi_cmake.write("add_compile_definitions(HAVE_EXECINFO_H=1)\n")
     kaldi_cmake.write("add_compile_definitions(KALDI_DOUBLEPRECISION=0)\n")    
-    kaldi_cmake.write("set (CMAKE_CXX_STANDARD 11)\n")
+    kaldi_cmake.write("set (CMAKE_CXX_STANDARD 11)\n\n")
 
+    kaldi_cmake.write("set (CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)\n")
+    kaldi_cmake.write("set (MKL_ROOT /opt/intel/mkl)\n")
+    kaldi_cmake.write("find_package(CUDA)\n\n")
+    kaldi_cmake.write("find_package(MKL)\n")
     # write cmake dependency to atlas
-    kaldi_cmake.write("add_compile_definitions(HAVE_ATLAS)\n\ninclude_directories("+ATLASINC+")\n\n")
-    kaldi_cmake.write("include_directories("+OPENFSTINC+")\n\n")
+    #kaldi_cmake.write("add_compile_definitions(HAVE_ATLAS)\n\n")
+
+    # MKL
+    kaldi_cmake.write("add_compile_definitions(HAVE_MKL)\n")
+    kaldi_cmake.write("include_directories(" + MKLROOT + ")\n\n")
+    kaldi_cmake.write("""set(CMAKE_MKL_FLAGS "${CMAKE_MKL_FLGAS}" -lmkl_core -lmkl_sequential)\n\n""")
+    # CUDA
+    kaldi_cmake.write("add_compile_definitions(HAVE_CUDA)\n")
+    kaldi_cmake.write("include_directories("+CUDAINC+")\n")
+    kaldi_cmake.write("include_directories("+OPENFSTINC+")\n")
+    kaldi_cmake.write("""set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS}" -lineinfo)\n\n """)
 
     # need include src folder, otherwise we can't find all kaldi header files when we open in root directory.
     kaldi_cmake.write("include_directories(src)\n\n")

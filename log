@@ -1,0 +1,5 @@
+Converting  /home/fhq/code/kaldi/src/kws/Makefile  -->  /home/fhq/code/kaldi/src/kws/CMakeLists.txt
+libname:  kaldi-kws
+addlibs:  ['/home/fhq/code/kaldi/tools/openfst/lib/libfst.so', '/usr/local/cuda/lib64', '${CMAKE_THREAD_LIBS_INIT}', '${MKL_LIBS}', 'kaldi-lat', 'kaldi-hmm', 'kaldi-tree', 'kaldi-util', 'kaldi-matrix', 'kaldi-base']
+bin:  []
+obj    :  ['kws-functions', 'kws-functions2', 'kws-scoring']
